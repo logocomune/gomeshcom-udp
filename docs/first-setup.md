@@ -2,6 +2,9 @@
 
 This guide explains how to connect a **MeshCom** node to `gomeshcomd` using the **EXT UDP** interface provided by the MeshCom firmware.
 
+For USB or TCP console connections, use [Serial Transport](serial.md) or
+[NETConsole Transport](netconsole.md) instead.
+
 The goal is to make the node send UDP packets to the computer or server where `gomeshcomd` is running, so that data, messages, and events can be received through the program interface.
 
 > **Note:** this guide is about `gomeshcomd`. MeshCom, MeshCom Firmware, and other MeshCom-compatible software are separate projects. Field names in the firmware may vary slightly depending on the installed version.
@@ -147,7 +150,15 @@ If you are using the browser on the same computer where `gomeshcomd` is running:
 http://localhost:8080
 ```
 
-If `gomeshcomd` is running on another computer in the network:
+For access from another computer, bind HTTP to the LAN interface and allow
+inbound TCP `8080` in the host firewall. The default `127.0.0.1:8080` accepts
+connections only from the same computer:
+
+```bash
+GOMESHCOM_HTTP_ADDR=0.0.0.0:8080 ./gomeshcomd --my-call="QQ0YY-1"
+```
+
+Then open:
 
 ```text
 http://SERVER_IP:8080

@@ -102,6 +102,31 @@ func TestStartupBannerSerialTransport(t *testing.T) {
 	}
 }
 
+func TestStartupBannerNetConsoleTransport(t *testing.T) {
+	cfg := config.Config{
+		HTTPAddr:      "127.0.0.1:8080",
+		TransportMode: config.TransportNetConsole,
+		MyCall:        "QQ1ABC-1",
+		NetConsole: config.NetConsole{
+			Address: "meshcom.local:1799",
+		},
+	}
+
+	banner := startupBanner(cfg, cfg.MyCall)
+	for _, want := range []string{
+		"MeshCom NETCONSOLE Link Terminal",
+		"NODE     meshcom.local:1799",
+		"NETCON   meshcom.local:1799",
+	} {
+		if !strings.Contains(banner, want) {
+			t.Fatalf("startup banner missing %q:\n%s", want, banner)
+		}
+	}
+	if strings.Contains(banner, "UDP RX") {
+		t.Fatalf("NETConsole startup banner contains UDP row:\n%s", banner)
+	}
+}
+
 func TestStartupBannerRowsStayBoxed(t *testing.T) {
 	cfg := config.Config{
 		HTTPAddr:      "127.0.0.1:8080",

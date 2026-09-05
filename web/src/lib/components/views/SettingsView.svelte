@@ -70,7 +70,7 @@
 	let myCall = $state('');
 	let logLevel = $state('info');
 	let httpAddr = $state('');
-	let transportMode = $state<'udp' | 'serial'>('udp');
+	let transportMode = $state<'udp' | 'serial' | 'netconsole'>('udp');
 	let udpListenAddr = $state('');
 	let nodeAddr = $state('');
 	let maxMsgLen = $state('');
@@ -88,6 +88,17 @@
 	let serialReconnectMax = $state('');
 	let serialStableResetAfter = $state('');
 	let serialMaxRecordBytes = $state('');
+	// NETConsole transport
+	let netConsoleAddress = $state('');
+	let netConsolePassword = $state('');
+	let netConsoleConnectTimeout = $state('');
+	let netConsoleAuthTimeout = $state('');
+	let netConsoleWriteTimeout = $state('');
+	let netConsoleReconnectInitial = $state('');
+	let netConsoleReconnectMax = $state('');
+	let netConsoleStableResetAfter = $state('');
+	let netConsoleMaxAuthLineBytes = $state('');
+	let netConsoleMaxRecordBytes = $state('');
 	// Send
 	let dedupTtl = $state('');
 	// Receive Log
@@ -150,6 +161,16 @@
 				serialReconnectMax !== config.serial.reconnect_max.value ||
 				serialStableResetAfter !== config.serial.stable_reset_after.value ||
 				serialMaxRecordBytes !== String(config.serial.max_record_bytes.value) ||
+				netConsoleAddress !== config.netconsole.address.value ||
+				netConsolePassword !== config.netconsole.password.value ||
+				netConsoleConnectTimeout !== config.netconsole.connect_timeout.value ||
+				netConsoleAuthTimeout !== config.netconsole.auth_timeout.value ||
+				netConsoleWriteTimeout !== config.netconsole.write_timeout.value ||
+				netConsoleReconnectInitial !== config.netconsole.reconnect_initial.value ||
+				netConsoleReconnectMax !== config.netconsole.reconnect_max.value ||
+				netConsoleStableResetAfter !== config.netconsole.stable_reset_after.value ||
+				netConsoleMaxAuthLineBytes !== String(config.netconsole.max_auth_line_bytes.value) ||
+				netConsoleMaxRecordBytes !== String(config.netconsole.max_record_bytes.value) ||
 				dedupTtl !== config.send.dedup_ttl.value ||
 				receiveLogEnabled !== config.receive_log.enabled.value ||
 				receiveLogPath !== config.receive_log.path.value ||
@@ -185,6 +206,16 @@
 		serialReconnectMax = cfg.serial.reconnect_max.value;
 		serialStableResetAfter = cfg.serial.stable_reset_after.value;
 		serialMaxRecordBytes = String(cfg.serial.max_record_bytes.value);
+		netConsoleAddress = cfg.netconsole.address.value;
+		netConsolePassword = cfg.netconsole.password.value;
+		netConsoleConnectTimeout = cfg.netconsole.connect_timeout.value;
+		netConsoleAuthTimeout = cfg.netconsole.auth_timeout.value;
+		netConsoleWriteTimeout = cfg.netconsole.write_timeout.value;
+		netConsoleReconnectInitial = cfg.netconsole.reconnect_initial.value;
+		netConsoleReconnectMax = cfg.netconsole.reconnect_max.value;
+		netConsoleStableResetAfter = cfg.netconsole.stable_reset_after.value;
+		netConsoleMaxAuthLineBytes = String(cfg.netconsole.max_auth_line_bytes.value);
+		netConsoleMaxRecordBytes = String(cfg.netconsole.max_record_bytes.value);
 		dedupTtl = cfg.send.dedup_ttl.value;
 		receiveLogEnabled = cfg.receive_log.enabled.value;
 		receiveLogPath = cfg.receive_log.path.value;
@@ -251,6 +282,30 @@
 			if (!serial.max_record_bytes.env_override)
 				patch.serial.max_record_bytes = parseInt(serialMaxRecordBytes, 10);
 			if (Object.keys(patch.serial).length === 0) delete patch.serial;
+		}
+
+		{
+			const netconsole = config.netconsole;
+			patch.netconsole = {};
+			if (!netconsole.address.env_override) patch.netconsole.address = netConsoleAddress;
+			if (!netconsole.password.env_override) patch.netconsole.password = netConsolePassword;
+			if (!netconsole.connect_timeout.env_override)
+				patch.netconsole.connect_timeout = netConsoleConnectTimeout;
+			if (!netconsole.auth_timeout.env_override)
+				patch.netconsole.auth_timeout = netConsoleAuthTimeout;
+			if (!netconsole.write_timeout.env_override)
+				patch.netconsole.write_timeout = netConsoleWriteTimeout;
+			if (!netconsole.reconnect_initial.env_override)
+				patch.netconsole.reconnect_initial = netConsoleReconnectInitial;
+			if (!netconsole.reconnect_max.env_override)
+				patch.netconsole.reconnect_max = netConsoleReconnectMax;
+			if (!netconsole.stable_reset_after.env_override)
+				patch.netconsole.stable_reset_after = netConsoleStableResetAfter;
+			if (!netconsole.max_auth_line_bytes.env_override)
+				patch.netconsole.max_auth_line_bytes = parseInt(netConsoleMaxAuthLineBytes, 10);
+			if (!netconsole.max_record_bytes.env_override)
+				patch.netconsole.max_record_bytes = parseInt(netConsoleMaxRecordBytes, 10);
+			if (Object.keys(patch.netconsole).length === 0) delete patch.netconsole;
 		}
 
 		{
@@ -465,6 +520,7 @@
 							>
 								<option value="udp">UDP</option>
 								<option value="serial">Serial</option>
+								<option value="netconsole">NETConsole</option>
 							</select>
 						</SettingsField>
 						{#if transportMode === 'udp'}
@@ -496,7 +552,7 @@
 									placeholder="auto-detect"
 								/>
 							</SettingsField>
-						{:else}
+						{:else if transportMode === 'serial'}
 							<SettingsField
 								label="Serial device"
 								description="Explicit device path or COM port. Automatic discovery is not used."
@@ -678,11 +734,158 @@
 									type="number"
 									bind:value={serialMaxRecordBytes}
 									disabled={config.serial.max_record_bytes.env_override}
-								class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-								min="256"
-								max="1048576"
-							/>
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									min="256"
+									max="1048576"
+								/>
 							</SettingsField>
+						{:else}
+							<SettingsField
+								label="NETConsole address"
+								description="Raw TCP endpoint including port. Firmware default: 2323."
+								envOverride={config.netconsole.address.env_override}
+								requiresRestart={config.netconsole.address.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleAddress}
+									disabled={config.netconsole.address.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="192.168.1.53:2323"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="NETConsole password"
+								description="Stored locally and masked here. Empty selects firmware open-access mode."
+								envOverride={config.netconsole.password.env_override}
+								requiresRestart={config.netconsole.password.requires_restart}
+							>
+								<input
+									type="password"
+									bind:value={netConsolePassword}
+									disabled={config.netconsole.password.env_override}
+									autocomplete="new-password"
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="Open access"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Connect timeout"
+								description="Maximum TCP connection attempt duration."
+								envOverride={config.netconsole.connect_timeout.env_override}
+								requiresRestart={config.netconsole.connect_timeout.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleConnectTimeout}
+									disabled={config.netconsole.connect_timeout.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="5s"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Authentication timeout"
+								description="Maximum duration for challenge-response authentication."
+								envOverride={config.netconsole.auth_timeout.env_override}
+								requiresRestart={config.netconsole.auth_timeout.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleAuthTimeout}
+									disabled={config.netconsole.auth_timeout.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="5s"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Write timeout"
+								description="Maximum duration for each socket write."
+								envOverride={config.netconsole.write_timeout.env_override}
+								requiresRestart={config.netconsole.write_timeout.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleWriteTimeout}
+									disabled={config.netconsole.write_timeout.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="5s"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Reconnect initial"
+								description="Initial delay after a failed connection."
+								envOverride={config.netconsole.reconnect_initial.env_override}
+								requiresRestart={config.netconsole.reconnect_initial.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleReconnectInitial}
+									disabled={config.netconsole.reconnect_initial.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="1s"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Reconnect maximum"
+								description="Maximum reconnect backoff."
+								envOverride={config.netconsole.reconnect_max.env_override}
+								requiresRestart={config.netconsole.reconnect_max.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleReconnectMax}
+									disabled={config.netconsole.reconnect_max.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="30s"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Stable reset after"
+								description="Connected duration required before resetting reconnect backoff."
+								envOverride={config.netconsole.stable_reset_after.env_override}
+								requiresRestart={config.netconsole.stable_reset_after.requires_restart}
+							>
+								<input
+									type="text"
+									bind:value={netConsoleStableResetAfter}
+									disabled={config.netconsole.stable_reset_after.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									placeholder="30s"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Maximum authentication line"
+								description="Defensive authentication line limit in bytes."
+								envOverride={config.netconsole.max_auth_line_bytes.env_override}
+								requiresRestart={config.netconsole.max_auth_line_bytes.requires_restart}
+							>
+								<input
+									type="number"
+									bind:value={netConsoleMaxAuthLineBytes}
+									disabled={config.netconsole.max_auth_line_bytes.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									min="72"
+									max="4096"
+								/>
+							</SettingsField>
+							<SettingsField
+								label="Maximum NETConsole record"
+								description="Maximum buffered console line size in bytes."
+								envOverride={config.netconsole.max_record_bytes.env_override}
+								requiresRestart={config.netconsole.max_record_bytes.requires_restart}
+							>
+								<input
+									type="number"
+									bind:value={netConsoleMaxRecordBytes}
+									disabled={config.netconsole.max_record_bytes.env_override}
+									class="w-full rounded-lg border border-ink-dim/30 bg-base px-2.5 py-1.5 font-mono text-xs text-ink focus:border-azure focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									min="1"
+									max="1048576"
+								/>
+							</SettingsField>
+							<div class="px-4 py-3 text-xs text-coral">
+								NETConsole traffic is plaintext. Use only on a trusted LAN or through a VPN.
+							</div>
 						{/if}
 						<SettingsField
 							label="Max message length"

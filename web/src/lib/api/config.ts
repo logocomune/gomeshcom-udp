@@ -70,6 +70,19 @@ export type ConfigSerial = {
 	max_record_bytes: ConfigFieldMeta<number>;
 };
 
+export type ConfigNetConsole = {
+	address: ConfigFieldMeta<string>;
+	password: ConfigFieldMeta<string>;
+	connect_timeout: ConfigFieldMeta<string>;
+	auth_timeout: ConfigFieldMeta<string>;
+	write_timeout: ConfigFieldMeta<string>;
+	reconnect_initial: ConfigFieldMeta<string>;
+	reconnect_max: ConfigFieldMeta<string>;
+	stable_reset_after: ConfigFieldMeta<string>;
+	max_auth_line_bytes: ConfigFieldMeta<number>;
+	max_record_bytes: ConfigFieldMeta<number>;
+};
+
 export type ServerInfo = {
 	version: string;
 	started_at: string;
@@ -79,7 +92,7 @@ export type ServerInfo = {
 export type AppConfig = {
 	server: ServerInfo;
 	http_addr: ConfigFieldMeta<string>;
-	transport_mode: ConfigFieldMeta<'udp' | 'serial'>;
+	transport_mode: ConfigFieldMeta<'udp' | 'serial' | 'netconsole'>;
 	udp_listen_addr: ConfigFieldMeta<string>;
 	node_addr: ConfigFieldMeta<string>;
 	my_call: ConfigFieldMeta<string>;
@@ -95,6 +108,7 @@ export type AppConfig = {
 	request_log: ConfigRequestLog;
 	storage: ConfigStorage;
 	serial: ConfigSerial;
+	netconsole: ConfigNetConsole;
 };
 
 export type ConfigUpdateResponse = {
@@ -104,7 +118,7 @@ export type ConfigUpdateResponse = {
 
 export type ConfigPatch = {
 	http_addr?: string;
-	transport_mode?: 'udp' | 'serial';
+	transport_mode?: 'udp' | 'serial' | 'netconsole';
 	udp_listen_addr?: string;
 	node_addr?: string;
 	my_call?: string;
@@ -162,6 +176,18 @@ export type ConfigPatch = {
 		reconnect_initial?: string;
 		reconnect_max?: string;
 		stable_reset_after?: string;
+		max_record_bytes?: number;
+	};
+	netconsole?: {
+		address?: string;
+		password?: string;
+		connect_timeout?: string;
+		auth_timeout?: string;
+		write_timeout?: string;
+		reconnect_initial?: string;
+		reconnect_max?: string;
+		stable_reset_after?: string;
+		max_auth_line_bytes?: number;
 		max_record_bytes?: number;
 	};
 };

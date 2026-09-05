@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,16 +13,18 @@ import (
 )
 
 const (
-	Prefix               = "GOMESHCOM"
-	TransportUDP         = "udp"
-	TransportSerial      = "serial"
-	MaxSerialRecordBytes = 1 << 20
+	Prefix                = "GOMESHCOM"
+	TransportUDP          = "udp"
+	TransportSerial       = "serial"
+	TransportNetConsole   = "netconsole"
+	MaxSerialRecordBytes  = 1 << 20
+	MaxConsoleRecordBytes = 1 << 20
 )
 
 type Config struct {
 	conf.Version
 	HTTPAddr         string `conf:"default:127.0.0.1:8080,help:HTTP listen address"`
-	TransportMode    string `conf:"default:udp,help:node transport: udp|serial"`
+	TransportMode    string `conf:"default:udp,help:node transport: udp|serial|netconsole"`
 	UDPListenAddr    string `conf:"default:0.0.0.0:1799,help:MeshCom UDP listen address"`
 	NodeAddr         string `conf:"help:MeshCom node UDP address (auto-detected from incoming UDP traffic when empty)"`
 	MyCall           string `conf:"default:QQ0XX-1,help:local callsign"`
@@ -38,6 +41,7 @@ type Config struct {
 	Compression      Compression
 	Storage          Storage
 	Serial           Serial
+	NetConsole       NetConsole
 	LogLevel         string `conf:"default:info,help:log level: debug|info|warn|error"`
 }
 
@@ -55,6 +59,19 @@ type Serial struct {
 	ReconnectMax     time.Duration `conf:"default:30s,help:maximum serial reconnect delay"`
 	StableResetAfter time.Duration `conf:"default:30s,help:healthy session duration before reconnect backoff resets"`
 	MaxRecordBytes   int           `conf:"default:65536,help:maximum serial console record size"`
+}
+
+type NetConsole struct {
+	Address          string        `conf:"env:NETCONSOLE_ADDRESS,help:MeshCom NETConsole TCP address including port"`
+	Password         string        `conf:"env:NETCONSOLE_PASSWORD,mask,help:NETConsole password; empty enables open access"`
+	ConnectTimeout   time.Duration `conf:"default:5s,env:NETCONSOLE_CONNECT_TIMEOUT,help:NETConsole TCP connect timeout"`
+	AuthTimeout      time.Duration `conf:"default:5s,env:NETCONSOLE_AUTH_TIMEOUT,help:NETConsole authentication timeout"`
+	WriteTimeout     time.Duration `conf:"default:5s,env:NETCONSOLE_WRITE_TIMEOUT,help:NETConsole socket write timeout"`
+	ReconnectInitial time.Duration `conf:"default:1s,env:NETCONSOLE_RECONNECT_INITIAL,help:initial NETConsole reconnect delay"`
+	ReconnectMax     time.Duration `conf:"default:30s,env:NETCONSOLE_RECONNECT_MAX,help:maximum NETConsole reconnect delay"`
+	StableResetAfter time.Duration `conf:"default:30s,env:NETCONSOLE_STABLE_RESET_AFTER,help:healthy session duration before reconnect backoff resets"`
+	MaxAuthLineBytes int           `conf:"default:128,env:NETCONSOLE_MAX_AUTH_LINE_BYTES,help:maximum NETConsole authentication line size"`
+	MaxRecordBytes   int           `conf:"default:65536,env:NETCONSOLE_MAX_RECORD_BYTES,help:maximum NETConsole record size"`
 }
 
 type ReceiveLog struct {
@@ -235,6 +252,16 @@ func builtInDefaultConfig() Config {
 			StableResetAfter: 30 * time.Second,
 			MaxRecordBytes:   65536,
 		},
+		NetConsole: NetConsole{
+			ConnectTimeout:   5 * time.Second,
+			AuthTimeout:      5 * time.Second,
+			WriteTimeout:     5 * time.Second,
+			ReconnectInitial: time.Second,
+			ReconnectMax:     30 * time.Second,
+			StableResetAfter: 30 * time.Second,
+			MaxAuthLineBytes: 128,
+			MaxRecordBytes:   65536,
+		},
 	}
 }
 
@@ -247,6 +274,7 @@ func normalize(cfg Config) Config {
 	cfg.Serial.Device = strings.TrimSpace(cfg.Serial.Device)
 	cfg.Serial.Parity = strings.ToLower(strings.TrimSpace(cfg.Serial.Parity))
 	cfg.Serial.FlowControl = strings.ToLower(strings.TrimSpace(cfg.Serial.FlowControl))
+	cfg.NetConsole.Address = strings.TrimSpace(cfg.NetConsole.Address)
 	cfg.Storage = normalizeStorage(cfg.Storage)
 	return cfg
 }
@@ -282,8 +310,12 @@ func Validate(cfg Config) error {
 		if err := validateSerialTransport(cfg.Serial); err != nil {
 			return err
 		}
+	case TransportNetConsole:
+		if err := validateNetConsoleTransport(cfg.NetConsole); err != nil {
+			return err
+		}
 	default:
-		return errors.New("transport mode must be udp or serial")
+		return errors.New("transport mode must be udp, serial, or netconsole")
 	}
 
 	if cfg.MaxMessageLength <= 0 {
@@ -429,6 +461,54 @@ func validateSerialTransport(serial Serial) error {
 	}
 	if serial.MaxRecordBytes <= 0 || serial.MaxRecordBytes > MaxSerialRecordBytes {
 		return fmt.Errorf("serial maximum record size must be between 1 and %d bytes", MaxSerialRecordBytes)
+	}
+	return nil
+}
+
+func validateNetConsoleTransport(netconsole NetConsole) error {
+	host, portValue, err := net.SplitHostPort(netconsole.Address)
+	if err != nil {
+		return fmt.Errorf("netconsole address: %w", err)
+	}
+	if host == "" {
+		return errors.New("netconsole address host is required")
+	}
+	port, err := strconv.Atoi(portValue)
+	if err != nil || port < 1 || port > 65535 {
+		return errors.New("netconsole address port must be between 1 and 65535")
+	}
+	if len([]byte(netconsole.Password)) > 14 {
+		return errors.New("netconsole password must not exceed 14 bytes")
+	}
+	if strings.ContainsAny(netconsole.Password, "\x00\r\n") {
+		return errors.New("netconsole password contains a forbidden control byte")
+	}
+	if netconsole.ConnectTimeout <= 0 {
+		return errors.New("netconsole connect timeout must be greater than zero")
+	}
+	if netconsole.AuthTimeout <= 0 {
+		return errors.New("netconsole authentication timeout must be greater than zero")
+	}
+	if netconsole.WriteTimeout <= 0 {
+		return errors.New("netconsole write timeout must be greater than zero")
+	}
+	if netconsole.ReconnectInitial <= 0 {
+		return errors.New("netconsole reconnect initial delay must be greater than zero")
+	}
+	if netconsole.ReconnectMax <= 0 {
+		return errors.New("netconsole reconnect maximum delay must be greater than zero")
+	}
+	if netconsole.ReconnectInitial > netconsole.ReconnectMax {
+		return errors.New("netconsole reconnect initial delay must not exceed maximum delay")
+	}
+	if netconsole.StableResetAfter <= 0 {
+		return errors.New("netconsole stable reset duration must be greater than zero")
+	}
+	if netconsole.MaxAuthLineBytes < 72 || netconsole.MaxAuthLineBytes > 4096 {
+		return errors.New("netconsole maximum authentication line size must be between 72 and 4096 bytes")
+	}
+	if netconsole.MaxRecordBytes <= 0 || netconsole.MaxRecordBytes > MaxConsoleRecordBytes {
+		return fmt.Errorf("netconsole maximum record size must be between 1 and %d bytes", MaxConsoleRecordBytes)
 	}
 	return nil
 }

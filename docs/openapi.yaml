@@ -975,13 +975,13 @@ components:
       properties:
         mode:
           type: string
-          enum: [udp, serial]
+          enum: [udp, serial, netconsole]
         state:
           type: string
           enum: [disconnected, connecting, connected, degraded, stopped]
         endpoint:
           type: string
-          description: UDP listen address or explicit serial device.
+          description: UDP listen address, explicit serial device, or NETConsole TCP endpoint.
         last_error:
           type: string
         last_error_at:
@@ -1572,7 +1572,15 @@ components:
 
     ConfigStorageSection:
       type: object
-      required: [sqlite_path, purge_interval, receive_log_retention, public_chat_retention, nodes_retention, telemetry_retention]
+      required:
+        [
+          sqlite_path,
+          purge_interval,
+          receive_log_retention,
+          public_chat_retention,
+          nodes_retention,
+          telemetry_retention,
+        ]
       properties:
         sqlite_path:
           $ref: "#/components/schemas/ConfigFieldMeta"
@@ -1589,7 +1597,22 @@ components:
 
     ConfigSerialSection:
       type: object
-      required: [device, baud, data_bits, parity, stop_bits, flow_control, dtr, rts, read_timeout, reconnect_initial, reconnect_max, stable_reset_after, max_record_bytes]
+      required:
+        [
+          device,
+          baud,
+          data_bits,
+          parity,
+          stop_bits,
+          flow_control,
+          dtr,
+          rts,
+          read_timeout,
+          reconnect_initial,
+          reconnect_max,
+          stable_reset_after,
+          max_record_bytes,
+        ]
       properties:
         device:
           $ref: "#/components/schemas/ConfigFieldMeta"
@@ -1618,6 +1641,43 @@ components:
         max_record_bytes:
           $ref: "#/components/schemas/ConfigFieldMeta"
 
+    ConfigNetConsoleSection:
+      type: object
+      required:
+        [
+          address,
+          password,
+          connect_timeout,
+          auth_timeout,
+          write_timeout,
+          reconnect_initial,
+          reconnect_max,
+          stable_reset_after,
+          max_auth_line_bytes,
+          max_record_bytes,
+        ]
+      properties:
+        address:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        password:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        connect_timeout:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        auth_timeout:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        write_timeout:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        reconnect_initial:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        reconnect_max:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        stable_reset_after:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        max_auth_line_bytes:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+        max_record_bytes:
+          $ref: "#/components/schemas/ConfigFieldMeta"
+
     ConfigResponse:
       type: object
       required:
@@ -1639,6 +1699,7 @@ components:
         - request_log
         - storage
         - serial
+        - netconsole
       properties:
         server:
           $ref: "#/components/schemas/ConfigServerInfo"
@@ -1676,6 +1737,8 @@ components:
           $ref: "#/components/schemas/ConfigStorageSection"
         serial:
           $ref: "#/components/schemas/ConfigSerialSection"
+        netconsole:
+          $ref: "#/components/schemas/ConfigNetConsoleSection"
 
     ConfigUpdateReceiveLog:
       type: object
@@ -1831,6 +1894,44 @@ components:
           minimum: 1
           maximum: 1048576
 
+    ConfigUpdateNetConsole:
+      type: object
+      properties:
+        address:
+          type: string
+          example: "192.168.1.53:2323"
+        password:
+          type: string
+          description: Password value, empty string to clear, or `****` to preserve the current password.
+        connect_timeout:
+          type: string
+          default: "5s"
+        auth_timeout:
+          type: string
+          default: "5s"
+        write_timeout:
+          type: string
+          default: "5s"
+        reconnect_initial:
+          type: string
+          default: "1s"
+        reconnect_max:
+          type: string
+          default: "30s"
+        stable_reset_after:
+          type: string
+          default: "30s"
+        max_auth_line_bytes:
+          type: integer
+          default: 128
+          minimum: 72
+          maximum: 4096
+        max_record_bytes:
+          type: integer
+          default: 65536
+          minimum: 1
+          maximum: 1048576
+
     ConfigUpdateRequest:
       type: object
       description: |
@@ -1844,7 +1945,7 @@ components:
           example: "0.0.0.0:8080"
         transport_mode:
           type: string
-          enum: [udp, serial]
+          enum: [udp, serial, netconsole]
           default: udp
         udp_listen_addr:
           type: string
@@ -1880,6 +1981,8 @@ components:
           $ref: "#/components/schemas/ConfigUpdateStorage"
         serial:
           $ref: "#/components/schemas/ConfigUpdateSerial"
+        netconsole:
+          $ref: "#/components/schemas/ConfigUpdateNetConsole"
 
     ConfigUpdateResponse:
       type: object

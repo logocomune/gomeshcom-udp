@@ -1,17 +1,16 @@
 # Backend and Configuration
 
-`gomeshcomd` receives MeshCom ExtUDP-compatible traffic over UDP or serial, stores runtime data in SQLite, and serves the browser UI and HTTP API.
+`gomeshcomd` receives MeshCom ExtUDP-compatible traffic over UDP, serial, or NETConsole, stores runtime data in SQLite, and serves the browser UI and HTTP API.
 
 ## Configuration
 
-Configuration precedence, from lowest to highest, is:
+Environment variables override TOML values, which override built-in defaults.
+CLI flags are parsed before the TOML merge. Currently, a TOML value can replace
+a CLI-only value because the merge protects environment overrides, not explicit
+flags. For reliable overrides of an existing TOML file, use `GOMESHCOM_*`
+environment variables or edit the file through Settings.
 
-1. built-in defaults;
-2. `data/configs/gomeshcomd.toml`;
-3. `GOMESHCOM_*` environment variables;
-4. command-line flags.
-
-On first start, the daemon writes a commented TOML template. Set `GOMESHCOM_DATA_DIR` before startup to place that file and all runtime data elsewhere. Environment values and flags use Go duration syntax (`720h`); TOML also accepts day values such as `30d`.
+On first start, the daemon writes a commented TOML template. Set `GOMESHCOM_DATA_DIR` before startup to relocate the configuration directory. The database path is independent: also set `GOMESHCOM_STORAGE_SQLITE_PATH`, for example `/data/gomeshcom.db` in Docker. Relative paths resolve from the process working directory. Legacy import paths must also be set explicitly when relocating an old installation. Environment values and flags use Go duration syntax (`720h`); TOML also accepts day values such as `30d`.
 
 Use `--help` to list every available flag:
 
@@ -21,7 +20,7 @@ Use `--help` to list every available flag:
 
 | Setting | Default | Purpose |
 |---|---:|---|
-| `GOMESHCOM_TRANSPORT_MODE` | `udp` | Node transport; `udp` or `serial` |
+| `GOMESHCOM_TRANSPORT_MODE` | `udp` | Node transport; `udp`, `serial`, or `netconsole` |
 | `GOMESHCOM_HTTP_ADDR` | `127.0.0.1:8080` | HTTP listen address |
 | `GOMESHCOM_UDP_LISTEN_ADDR` | `0.0.0.0:1799` | ExtUDP listen address |
 | `GOMESHCOM_NODE_ADDR` | empty | Fixed node address; empty enables source auto-detection |
@@ -39,6 +38,8 @@ Serial mode requires firmware 4.35+ and an explicit
 See [Serial Transport](serial.md) for DTR/RTS, reconnect, terminal, platform,
 and Docker details.
 
+NETConsole mode requires `GOMESHCOM_NETCONSOLE_ADDRESS=host:port` and, for protected firmware, a matching password. See [NETConsole Transport](netconsole.md) for authentication, reconnect, and Settings details. Exactly one node transport runs at a time.
+
 The configuration API exposes effective values, environment overrides, and restart requirements through `GET /api/config`. It accepts writable changes through `PUT /api/config`. Environment-managed values remain read-only.
 
 ## Runtime Data
@@ -46,6 +47,8 @@ The configuration API exposes effective values, environment overrides, and resta
 SQLite is the runtime store. It uses WAL mode, foreign keys, one pooled connection, and a five-second busy timeout. It stores received packets, chat history and read markers, node positions, hourly statistics, telemetry, sessions, channel visibility, station identity, and DM statistics.
 
 At first database creation, compatible JSON and JSONL files are imported once. They remain migration input only; live state is no longer written to them. SQLite maintenance removes expired receive-log, public-chat, node, and telemetry rows according to the `GOMESHCOM_STORAGE_*_RETENTION` settings.
+
+Legacy `receive_log.path`, `chat_log.path`, and `stats.path` settings locate migration input; they do not select live output files. `receive_log.retention_days` does not control SQLite retention. Hourly statistics have their own `stats.retention_days` policy; see [Statistics](statistics.md).
 
 ## Callsign
 
@@ -77,4 +80,4 @@ When authentication is enabled, log in through `POST /api/session`; successful s
 
 `POST /api/messages` validates messages, limits outgoing text to `GOMESHCOM_MAX_MESSAGE_LENGTH` UTF-8 characters, and suppresses immediate duplicates for `GOMESHCOM_SEND_DEDUP_TTL` (default `2s`). In demo mode it does not transmit.
 
-Each received UDP datagram can be mirrored byte-for-byte to the comma-separated targets in `GOMESHCOM_FORWARD_TARGETS`. In serial mode, each extracted ExtUDP JSON object is forwarded instead. Duplicate targets are ignored.
+Each received UDP datagram can be mirrored byte-for-byte to the comma-separated targets in `GOMESHCOM_FORWARD_TARGETS`. In serial and NETConsole modes, each extracted ExtUDP JSON object is forwarded instead. Duplicate targets are ignored.

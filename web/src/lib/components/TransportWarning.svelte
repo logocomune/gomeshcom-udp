@@ -3,7 +3,7 @@
 	import { API_BASE } from '$lib/api/events';
 
 	type TransportStatus = {
-		mode: 'udp' | 'serial';
+		mode: 'udp' | 'serial' | 'netconsole';
 		state: string;
 		last_error?: string;
 	};
@@ -19,7 +19,7 @@
 		try {
 			const response = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
 			if (!response.ok) return;
-			transport = (await response.json() as HealthResponse).transport;
+			transport = ((await response.json()) as HealthResponse).transport;
 		} catch {
 			// Connection indicator reports an unavailable API connection.
 		}
@@ -35,15 +35,21 @@
 		return () => window.clearInterval(interval);
 	});
 
-	let serialUnavailable = $derived(transport?.mode === 'serial' && transport.state !== 'connected');
+	let connectionTransportUnavailable = $derived(
+		(transport?.mode === 'serial' || transport?.mode === 'netconsole') &&
+			transport.state !== 'connected'
+	);
+	let unavailableLabel = $derived(
+		transport?.mode === 'netconsole' ? 'NETConsole unavailable' : 'Serial unavailable'
+	);
 </script>
 
-{#if serialUnavailable}
+{#if connectionTransportUnavailable}
 	<span
-		data-testid="serial-transport-warning"
+		data-testid="transport-warning"
 		class="max-w-28 shrink-0 truncate whitespace-nowrap rounded-full bg-coral/15 px-2.5 py-0.5 text-[11px] font-semibold text-coral md:max-w-none"
 		title={transport?.last_error}
 	>
-		Serial unavailable{transport?.last_error ? `: ${transport.last_error}` : ''}
+		{unavailableLabel}{transport?.last_error ? `: ${transport.last_error}` : ''}
 	</span>
 {/if}

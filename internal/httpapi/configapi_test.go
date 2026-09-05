@@ -55,6 +55,16 @@ func fullTestConfig() config.Config {
 			StableResetAfter: 30 * time.Second,
 			MaxRecordBytes:   65536,
 		},
+		NetConsole: config.NetConsole{
+			ConnectTimeout:   5 * time.Second,
+			AuthTimeout:      5 * time.Second,
+			WriteTimeout:     5 * time.Second,
+			ReconnectInitial: time.Second,
+			ReconnectMax:     30 * time.Second,
+			StableResetAfter: 30 * time.Second,
+			MaxAuthLineBytes: 128,
+			MaxRecordBytes:   65536,
+		},
 		Storage: config.Storage{
 			SQLitePath:          "./data/gomeshcom.db",
 			PurgeInterval:       4 * time.Hour,

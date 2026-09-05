@@ -49,6 +49,7 @@ type configResponse struct {
 	RequestLog       configRequestLogResponse `json:"request_log"`
 	Storage          configStorageResponse    `json:"storage"`
 	Serial           configSerialResponse     `json:"serial"`
+	NetConsole       configNetConsoleResponse `json:"netconsole"`
 }
 
 type configSerialResponse struct {
@@ -64,6 +65,19 @@ type configSerialResponse struct {
 	ReconnectInitial configFieldMeta `json:"reconnect_initial"`
 	ReconnectMax     configFieldMeta `json:"reconnect_max"`
 	StableResetAfter configFieldMeta `json:"stable_reset_after"`
+	MaxRecordBytes   configFieldMeta `json:"max_record_bytes"`
+}
+
+type configNetConsoleResponse struct {
+	Address          configFieldMeta `json:"address"`
+	Password         configFieldMeta `json:"password"`
+	ConnectTimeout   configFieldMeta `json:"connect_timeout"`
+	AuthTimeout      configFieldMeta `json:"auth_timeout"`
+	WriteTimeout     configFieldMeta `json:"write_timeout"`
+	ReconnectInitial configFieldMeta `json:"reconnect_initial"`
+	ReconnectMax     configFieldMeta `json:"reconnect_max"`
+	StableResetAfter configFieldMeta `json:"stable_reset_after"`
+	MaxAuthLineBytes configFieldMeta `json:"max_auth_line_bytes"`
 	MaxRecordBytes   configFieldMeta `json:"max_record_bytes"`
 }
 
@@ -136,6 +150,7 @@ type configUpdateRequest struct {
 	RequestLog *configUpdateRequestLog `json:"request_log,omitempty"`
 	Storage    *configUpdateStorage    `json:"storage,omitempty"`
 	Serial     *configUpdateSerial     `json:"serial,omitempty"`
+	NetConsole *configUpdateNetConsole `json:"netconsole,omitempty"`
 }
 
 type configUpdateSerial struct {
@@ -151,6 +166,19 @@ type configUpdateSerial struct {
 	ReconnectInitial *string `json:"reconnect_initial,omitempty"`
 	ReconnectMax     *string `json:"reconnect_max,omitempty"`
 	StableResetAfter *string `json:"stable_reset_after,omitempty"`
+	MaxRecordBytes   *int    `json:"max_record_bytes,omitempty"`
+}
+
+type configUpdateNetConsole struct {
+	Address          *string `json:"address,omitempty"`
+	Password         *string `json:"password,omitempty"`
+	ConnectTimeout   *string `json:"connect_timeout,omitempty"`
+	AuthTimeout      *string `json:"auth_timeout,omitempty"`
+	WriteTimeout     *string `json:"write_timeout,omitempty"`
+	ReconnectInitial *string `json:"reconnect_initial,omitempty"`
+	ReconnectMax     *string `json:"reconnect_max,omitempty"`
+	StableResetAfter *string `json:"stable_reset_after,omitempty"`
+	MaxAuthLineBytes *int    `json:"max_auth_line_bytes,omitempty"`
 	MaxRecordBytes   *int    `json:"max_record_bytes,omitempty"`
 }
 
@@ -223,6 +251,10 @@ func buildConfigResponse(cfg config.Config, env config.EnvOverrides, version str
 	passwordDisplay := ""
 	if cfg.Auth.Password != "" {
 		passwordDisplay = passwordMask
+	}
+	netConsolePasswordDisplay := ""
+	if cfg.NetConsole.Password != "" {
+		netConsolePasswordDisplay = passwordMask
 	}
 
 	now := time.Now().UTC()
@@ -298,6 +330,18 @@ func buildConfigResponse(cfg config.Config, env config.EnvOverrides, version str
 			ReconnectMax:     durationField(cfg.Serial.ReconnectMax, "SERIAL_RECONNECT_MAX", env, true),
 			StableResetAfter: durationField(cfg.Serial.StableResetAfter, "SERIAL_STABLE_RESET_AFTER", env, true),
 			MaxRecordBytes:   field(cfg.Serial.MaxRecordBytes, "SERIAL_MAX_RECORD_BYTES", env, true),
+		},
+		NetConsole: configNetConsoleResponse{
+			Address:          field(cfg.NetConsole.Address, "NETCONSOLE_ADDRESS", env, true),
+			Password:         field(netConsolePasswordDisplay, "NETCONSOLE_PASSWORD", env, true),
+			ConnectTimeout:   durationField(cfg.NetConsole.ConnectTimeout, "NETCONSOLE_CONNECT_TIMEOUT", env, true),
+			AuthTimeout:      durationField(cfg.NetConsole.AuthTimeout, "NETCONSOLE_AUTH_TIMEOUT", env, true),
+			WriteTimeout:     durationField(cfg.NetConsole.WriteTimeout, "NETCONSOLE_WRITE_TIMEOUT", env, true),
+			ReconnectInitial: durationField(cfg.NetConsole.ReconnectInitial, "NETCONSOLE_RECONNECT_INITIAL", env, true),
+			ReconnectMax:     durationField(cfg.NetConsole.ReconnectMax, "NETCONSOLE_RECONNECT_MAX", env, true),
+			StableResetAfter: durationField(cfg.NetConsole.StableResetAfter, "NETCONSOLE_STABLE_RESET_AFTER", env, true),
+			MaxAuthLineBytes: field(cfg.NetConsole.MaxAuthLineBytes, "NETCONSOLE_MAX_AUTH_LINE_BYTES", env, true),
+			MaxRecordBytes:   field(cfg.NetConsole.MaxRecordBytes, "NETCONSOLE_MAX_RECORD_BYTES", env, true),
 		},
 	}
 }
@@ -543,6 +587,13 @@ func (s *Server) updateConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		requiresRestart = true
 	}
+	if req.NetConsole != nil {
+		if err := applyNetConsoleUpdate(&candidate.NetConsole, req.NetConsole); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		requiresRestart = true
+	}
 
 	// Normalize and validate before persisting.
 	candidate = config.Normalize(candidate)
@@ -660,6 +711,44 @@ func applySerialUpdate(serial *config.Serial, update *configUpdateSerial) error 
 	return nil
 }
 
+func applyNetConsoleUpdate(target *config.NetConsole, update *configUpdateNetConsole) error {
+	if update.Address != nil {
+		target.Address = *update.Address
+	}
+	if update.Password != nil && *update.Password != passwordMask {
+		target.Password = *update.Password
+	}
+	durationUpdates := []struct {
+		value  *string
+		target *time.Duration
+		name   string
+	}{
+		{update.ConnectTimeout, &target.ConnectTimeout, "connect_timeout"},
+		{update.AuthTimeout, &target.AuthTimeout, "auth_timeout"},
+		{update.WriteTimeout, &target.WriteTimeout, "write_timeout"},
+		{update.ReconnectInitial, &target.ReconnectInitial, "reconnect_initial"},
+		{update.ReconnectMax, &target.ReconnectMax, "reconnect_max"},
+		{update.StableResetAfter, &target.StableResetAfter, "stable_reset_after"},
+	}
+	for _, durationUpdate := range durationUpdates {
+		if durationUpdate.value == nil {
+			continue
+		}
+		duration, err := config.ParseDuration(*durationUpdate.value)
+		if err != nil {
+			return fmt.Errorf("netconsole.%s: %w", durationUpdate.name, err)
+		}
+		*durationUpdate.target = duration
+	}
+	if update.MaxAuthLineBytes != nil {
+		target.MaxAuthLineBytes = *update.MaxAuthLineBytes
+	}
+	if update.MaxRecordBytes != nil {
+		target.MaxRecordBytes = *update.MaxRecordBytes
+	}
+	return nil
+}
+
 // checkEnvLocked returns an error if the update attempts to change any field
 // that is currently managed by an environment variable.
 func checkEnvLocked(req configUpdateRequest, env config.EnvOverrides) error {
@@ -750,6 +839,21 @@ func checkEnvLocked(req configUpdateRequest, env config.EnvOverrides) error {
 			check{serial.ReconnectMax != nil, "SERIAL_RECONNECT_MAX"},
 			check{serial.StableResetAfter != nil, "SERIAL_STABLE_RESET_AFTER"},
 			check{serial.MaxRecordBytes != nil, "SERIAL_MAX_RECORD_BYTES"},
+		)
+	}
+	if req.NetConsole != nil {
+		netconsole := req.NetConsole
+		checks = append(checks,
+			check{netconsole.Address != nil, "NETCONSOLE_ADDRESS"},
+			check{netconsole.Password != nil && *netconsole.Password != passwordMask, "NETCONSOLE_PASSWORD"},
+			check{netconsole.ConnectTimeout != nil, "NETCONSOLE_CONNECT_TIMEOUT"},
+			check{netconsole.AuthTimeout != nil, "NETCONSOLE_AUTH_TIMEOUT"},
+			check{netconsole.WriteTimeout != nil, "NETCONSOLE_WRITE_TIMEOUT"},
+			check{netconsole.ReconnectInitial != nil, "NETCONSOLE_RECONNECT_INITIAL"},
+			check{netconsole.ReconnectMax != nil, "NETCONSOLE_RECONNECT_MAX"},
+			check{netconsole.StableResetAfter != nil, "NETCONSOLE_STABLE_RESET_AFTER"},
+			check{netconsole.MaxAuthLineBytes != nil, "NETCONSOLE_MAX_AUTH_LINE_BYTES"},
+			check{netconsole.MaxRecordBytes != nil, "NETCONSOLE_MAX_RECORD_BYTES"},
 		)
 	}
 

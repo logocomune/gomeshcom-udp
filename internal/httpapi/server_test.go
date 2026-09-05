@@ -179,24 +179,27 @@ func TestEventStreamDisablesCaching(t *testing.T) {
 	assertNoCacheHeaders(t, response.Header())
 }
 
-func TestIndexHTMLDisablesCaching(t *testing.T) {
+func TestMutableAppShellResourcesDisableCaching(t *testing.T) {
 	server := NewServer(testConfig(), "v0.0.0-test", events.NewBus(), nil, nil, nil, nil, nil, nil)
-	request := httptest.NewRequest(http.MethodGet, "/index.html", nil)
-	response := httptest.NewRecorder()
+	paths := []string{"/", "/index.html", "/service-worker.js", "/manifest.webmanifest", "/unknown-route"}
 
-	server.Handler().ServeHTTP(response, request)
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, path, nil)
+			response := httptest.NewRecorder()
 
-	assertIndexNoCacheHeaders(t, response.Header())
+			server.Handler().ServeHTTP(response, request)
+
+			assertIndexNoCacheHeaders(t, response.Header())
+		})
+	}
 }
 
-func TestImmutableStaticResponsesUseLongCache(t *testing.T) {
-	server := NewServer(testConfig(), "v0.0.0-test", events.NewBus(), nil, nil, nil, nil, nil, nil)
-	request := httptest.NewRequest(http.MethodGet, "/_app/immutable/entry/app.js", nil)
-	response := httptest.NewRecorder()
+func TestImmutableStaticPathsUseLongCache(t *testing.T) {
+	header := make(http.Header)
+	setCacheHeaders(header, "/_app/immutable/entry/app.js")
 
-	server.Handler().ServeHTTP(response, request)
-
-	if got := response.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+	if got := header.Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
 		t.Fatalf("Cache-Control = %q, want immutable cache", got)
 	}
 }

@@ -2,6 +2,47 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.15.0] 2026-09-05
+
+### Added
+
+- **Progressive Web App**: secure origins can install goMeshCom with platform
+  icons and reopen its cached application shell offline. API, SSE, message,
+  position, statistics, and cross-origin requests remain network-only.
+- **NETConsole node transport**: ESP32 nodes can connect through raw TCP
+  NETConsole with strict open-access or HMAC-SHA256 authentication, automatic
+  `--setinfo on`, bounded ExtUDP decoding, broadcast/channel/DM TX, reconnect
+  backoff, transport health, and no new Go dependency.
+- **NETConsole configuration and UI**: TOML, `GOMESHCOM_NETCONSOLE_*`,
+  `GET`/`PUT /api/config`, Settings, and status warning expose endpoint,
+  masked password, timeouts, reconnect controls, and connection state on Linux,
+  macOS, and Windows.
+
+### Changed
+
+- **Project documentation**: add nightly-build publishing and retention guidance,
+  expand the serial transport guide, and disclose the project's use of
+  AI-assisted development in the README.
+
+- **Documentation alignment**: correct SQLite persistence and statistics retention, remove obsolete send-delay configuration, document NETConsole in the backend guide, clarify configuration precedence, and fix LAN setup, Docker database persistence, and environment examples.
+
+- **Shared console codec**: serial and NETConsole reuse one bounded ExtUDP
+  decoder and one validated `::` command encoder.
+
+### Fixed
+
+- **NETConsole lifecycle**: interrupt blocked authentication on shutdown or
+  restart, and reset reconnect backoff only after a stable connected session,
+  excluding connection and authentication delays.
+
+- **Frontend cache revalidation**: service worker, manifest, index, and unknown
+  SPA routes now revalidate so browser-managed PWA updates remain discoverable.
+
+### Removed
+
+- **Standalone NETConsole prototype**: remove the obsolete root-level
+  `netconsole_client.go`; daemon-integrated NETConsole transport replaces it.
+
 ## [0.14.0] 2026-07-30
 
 ### Added

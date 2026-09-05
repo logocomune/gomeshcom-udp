@@ -22,7 +22,7 @@ GET /api/stats?hours=N
 
 ## Retention
 
-`GOMESHCOM_STORAGE_PURGE_INTERVAL` controls maintenance frequency. `GOMESHCOM_STORAGE_TELEMETRY_RETENTION` controls telemetry storage, while `GOMESHCOM_STORAGE_PUBLIC_CHAT_RETENTION`, `GOMESHCOM_STORAGE_RECEIVE_LOG_RETENTION`, and `GOMESHCOM_STORAGE_NODES_RETENTION` control their respective datasets. Statistics are retained with the SQLite database unless explicitly removed by an operator.
+`GOMESHCOM_STORAGE_PURGE_INTERVAL` controls maintenance frequency. `GOMESHCOM_STORAGE_TELEMETRY_RETENTION` controls telemetry storage, while `GOMESHCOM_STORAGE_PUBLIC_CHAT_RETENTION`, `GOMESHCOM_STORAGE_RECEIVE_LOG_RETENTION`, and `GOMESHCOM_STORAGE_NODES_RETENTION` control their respective datasets. Hourly statistics use `GOMESHCOM_STATS_RETENTION_DAYS` (TOML `stats.retention_days`), default `30`. Expired buckets are pruned during the statistics flush cycle; `0` disables this pruning. Cumulative DM counters are separate from hourly bucket retention.
 
 ## Distance Buckets
 

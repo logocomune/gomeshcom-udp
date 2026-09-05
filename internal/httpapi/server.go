@@ -234,7 +234,7 @@ func setCacheHeaders(header http.Header, path string) {
 		setNoCacheHeaders(header)
 	case strings.HasPrefix(path, "/_app/immutable/"):
 		setImmutableCacheHeaders(header)
-	case path == "/" || path == "/index.html":
+	case path == "/" || path == "/index.html" || path == "/service-worker.js" || path == "/manifest.webmanifest":
 		setIndexNoCacheHeaders(header)
 	}
 }
@@ -327,6 +327,7 @@ func spaHandler(fsys fs.FS) http.Handler {
 			return
 		}
 		// Unknown path — serve SPA entry point so client-side routing works.
+		setIndexNoCacheHeaders(w.Header())
 		r2 := r.Clone(r.Context())
 		r2.URL.Path = "/"
 		fileServer.ServeHTTP(w, r2)

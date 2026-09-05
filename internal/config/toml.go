@@ -41,6 +41,7 @@ type tomlFile struct {
 	Compression      *tomlCompression `toml:"compression"`
 	Storage          *tomlStorage     `toml:"storage"`
 	Serial           *tomlSerial      `toml:"serial"`
+	NetConsole       *tomlNetConsole  `toml:"netconsole"`
 }
 
 type tomlSerial struct {
@@ -56,6 +57,19 @@ type tomlSerial struct {
 	ReconnectInitial *tomlDuration `toml:"reconnect_initial"`
 	ReconnectMax     *tomlDuration `toml:"reconnect_max"`
 	StableResetAfter *tomlDuration `toml:"stable_reset_after"`
+	MaxRecordBytes   *int          `toml:"max_record_bytes"`
+}
+
+type tomlNetConsole struct {
+	Address          *string       `toml:"address"`
+	Password         *string       `toml:"password"`
+	ConnectTimeout   *tomlDuration `toml:"connect_timeout"`
+	AuthTimeout      *tomlDuration `toml:"auth_timeout"`
+	WriteTimeout     *tomlDuration `toml:"write_timeout"`
+	ReconnectInitial *tomlDuration `toml:"reconnect_initial"`
+	ReconnectMax     *tomlDuration `toml:"reconnect_max"`
+	StableResetAfter *tomlDuration `toml:"stable_reset_after"`
+	MaxAuthLineBytes *int          `toml:"max_auth_line_bytes"`
 	MaxRecordBytes   *int          `toml:"max_record_bytes"`
 }
 
@@ -219,6 +233,16 @@ var knownEnvSuffixes = []string{
 	"SERIAL_RECONNECT_MAX",
 	"SERIAL_STABLE_RESET_AFTER",
 	"SERIAL_MAX_RECORD_BYTES",
+	"NETCONSOLE_ADDRESS",
+	"NETCONSOLE_PASSWORD",
+	"NETCONSOLE_CONNECT_TIMEOUT",
+	"NETCONSOLE_AUTH_TIMEOUT",
+	"NETCONSOLE_WRITE_TIMEOUT",
+	"NETCONSOLE_RECONNECT_INITIAL",
+	"NETCONSOLE_RECONNECT_MAX",
+	"NETCONSOLE_STABLE_RESET_AFTER",
+	"NETCONSOLE_MAX_AUTH_LINE_BYTES",
+	"NETCONSOLE_MAX_RECORD_BYTES",
 }
 
 // DetectEnvOverrides returns the set of config fields that are explicitly
@@ -373,6 +397,9 @@ func mergeToml(cfg *Config, tf *tomlFile, env EnvOverrides) {
 	if s := tf.Serial; s != nil {
 		mergeSerialToml(&cfg.Serial, s, env)
 	}
+	if n := tf.NetConsole; n != nil {
+		mergeNetConsoleToml(&cfg.NetConsole, n, env)
+	}
 }
 
 func mergeSerialToml(serial *Serial, source *tomlSerial, env EnvOverrides) {
@@ -414,6 +441,39 @@ func mergeSerialToml(serial *Serial, source *tomlSerial, env EnvOverrides) {
 	}
 	if source.MaxRecordBytes != nil && !env["SERIAL_MAX_RECORD_BYTES"] {
 		serial.MaxRecordBytes = *source.MaxRecordBytes
+	}
+}
+
+func mergeNetConsoleToml(target *NetConsole, source *tomlNetConsole, env EnvOverrides) {
+	if source.Address != nil && !env["NETCONSOLE_ADDRESS"] {
+		target.Address = *source.Address
+	}
+	if source.Password != nil && !env["NETCONSOLE_PASSWORD"] {
+		target.Password = *source.Password
+	}
+	if source.ConnectTimeout != nil && !env["NETCONSOLE_CONNECT_TIMEOUT"] {
+		target.ConnectTimeout = source.ConnectTimeout.Duration
+	}
+	if source.AuthTimeout != nil && !env["NETCONSOLE_AUTH_TIMEOUT"] {
+		target.AuthTimeout = source.AuthTimeout.Duration
+	}
+	if source.WriteTimeout != nil && !env["NETCONSOLE_WRITE_TIMEOUT"] {
+		target.WriteTimeout = source.WriteTimeout.Duration
+	}
+	if source.ReconnectInitial != nil && !env["NETCONSOLE_RECONNECT_INITIAL"] {
+		target.ReconnectInitial = source.ReconnectInitial.Duration
+	}
+	if source.ReconnectMax != nil && !env["NETCONSOLE_RECONNECT_MAX"] {
+		target.ReconnectMax = source.ReconnectMax.Duration
+	}
+	if source.StableResetAfter != nil && !env["NETCONSOLE_STABLE_RESET_AFTER"] {
+		target.StableResetAfter = source.StableResetAfter.Duration
+	}
+	if source.MaxAuthLineBytes != nil && !env["NETCONSOLE_MAX_AUTH_LINE_BYTES"] {
+		target.MaxAuthLineBytes = *source.MaxAuthLineBytes
+	}
+	if source.MaxRecordBytes != nil && !env["NETCONSOLE_MAX_RECORD_BYTES"] {
+		target.MaxRecordBytes = *source.MaxRecordBytes
 	}
 }
 
@@ -476,7 +536,7 @@ func buildTomlContent(cfg Config) string {
 	b.WriteString("\n")
 
 	w("HTTP listen address", "http_addr", tomlStr(cfg.HTTPAddr))
-	w("Node transport: udp or serial", "transport_mode", tomlStr(cfg.TransportMode))
+	w("Node transport: udp, serial, or netconsole", "transport_mode", tomlStr(cfg.TransportMode))
 	w("MeshCom UDP listen address", "udp_listen_addr", tomlStr(cfg.UDPListenAddr))
 	w("MeshCom node UDP address; empty = auto-detect from first incoming packet", "node_addr", tomlStr(cfg.NodeAddr))
 	w("Local callsign (live-apply — no restart needed)", "my_call", tomlStr(cfg.MyCall))
@@ -499,6 +559,18 @@ func buildTomlContent(cfg Config) string {
 	w("Maximum serial reconnect delay", "reconnect_max", tomlStr(cfg.Serial.ReconnectMax.String()))
 	w("Healthy session duration before reconnect backoff resets", "stable_reset_after", tomlStr(cfg.Serial.StableResetAfter.String()))
 	w("Maximum serial console record size in bytes", "max_record_bytes", tomlInt(cfg.Serial.MaxRecordBytes))
+
+	b.WriteString("\n[netconsole]\n")
+	w("MeshCom NETConsole TCP address including port", "address", tomlStr(cfg.NetConsole.Address))
+	w("NETConsole password; empty enables open access", "password", tomlStr(cfg.NetConsole.Password))
+	w("TCP connect timeout", "connect_timeout", tomlStr(cfg.NetConsole.ConnectTimeout.String()))
+	w("Authentication exchange timeout", "auth_timeout", tomlStr(cfg.NetConsole.AuthTimeout.String()))
+	w("Socket write timeout", "write_timeout", tomlStr(cfg.NetConsole.WriteTimeout.String()))
+	w("Initial reconnect delay", "reconnect_initial", tomlStr(cfg.NetConsole.ReconnectInitial.String()))
+	w("Maximum reconnect delay", "reconnect_max", tomlStr(cfg.NetConsole.ReconnectMax.String()))
+	w("Healthy session duration before reconnect backoff resets", "stable_reset_after", tomlStr(cfg.NetConsole.StableResetAfter.String()))
+	w("Maximum authentication line size in bytes", "max_auth_line_bytes", tomlInt(cfg.NetConsole.MaxAuthLineBytes))
+	w("Maximum console record size in bytes", "max_record_bytes", tomlInt(cfg.NetConsole.MaxRecordBytes))
 
 	b.WriteString("\n[receive_log]\n")
 	w("Enable received packet JSONL log", "enabled", tomlBool(cfg.ReceiveLog.Enabled))

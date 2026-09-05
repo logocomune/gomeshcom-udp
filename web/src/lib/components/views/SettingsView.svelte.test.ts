@@ -5,7 +5,8 @@ import { render } from 'vitest-browser-svelte';
 import type { AppConfig, ConfigFieldMeta } from '$lib/api/config';
 
 const configAPI = vi.hoisted(() => ({
-	getConfig: vi.fn()
+	getConfig: vi.fn(),
+	updateConfig: vi.fn()
 }));
 
 vi.mock('$env/dynamic/public', () => ({ env: {} }));
@@ -13,7 +14,8 @@ vi.mock('$lib/api/config', async (importOriginal) => {
 	const original = await importOriginal<typeof import('$lib/api/config')>();
 	return {
 		...original,
-		getConfig: configAPI.getConfig
+		getConfig: configAPI.getConfig,
+		updateConfig: configAPI.updateConfig
 	};
 });
 
@@ -46,6 +48,61 @@ describe('SettingsView serial transport', () => {
 	});
 });
 
+describe('SettingsView NETConsole transport', () => {
+	beforeEach(() => {
+		configAPI.getConfig.mockReset();
+		configAPI.getConfig.mockResolvedValue(netConsoleConfig());
+		configAPI.updateConfig.mockReset();
+		configAPI.updateConfig.mockImplementation(async () => ({
+			config: netConsoleConfig(),
+			requires_restart: true
+		}));
+	});
+
+	it('shows endpoint, masked password, timeouts, and plaintext warning', async () => {
+		expect.assertions(6);
+
+		render(SettingsView);
+
+		await expect.element(page.getByText('NETConsole address', { exact: true })).toBeVisible();
+		await expect
+			.element(page.getByPlaceholder('192.168.1.53:2323'))
+			.toHaveValue('meshcom.local:2323');
+		await expect.element(page.getByText('NETConsole password', { exact: true })).toBeVisible();
+		const password = document.querySelector<HTMLInputElement>('input[type="password"]');
+		expect(password?.value).toBe('****');
+		await expect.element(page.getByText(/NETConsole traffic is plaintext/)).toBeVisible();
+		expect(page.getByText('Serial device', { exact: true }).query()).toBeNull();
+	});
+
+	it.each([
+		{ name: 'clears', value: '' },
+		{ name: 'replaces', value: 'new-password' }
+	])('$name password and includes it in generated patch', async ({ value }) => {
+		render(SettingsView);
+
+		const password = page.getByPlaceholder('Open access');
+		await expect.element(password).toHaveValue('****');
+		await password.fill(value);
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+		await vi.waitFor(() => expect(configAPI.updateConfig).toHaveBeenCalledOnce());
+		const patch = configAPI.updateConfig.mock.calls[0]?.[0];
+		expect(patch.netconsole.password).toBe(value);
+		expect(patch.netconsole.address).toBe('meshcom.local:2323');
+	});
+
+	it('disables password changes when environment-managed', async () => {
+		const config = netConsoleConfig();
+		config.netconsole.password.env_override = true;
+		configAPI.getConfig.mockResolvedValue(config);
+
+		render(SettingsView);
+
+		await expect.element(page.getByPlaceholder('Open access')).toBeDisabled();
+	});
+});
+
 function field<T>(value: T): ConfigFieldMeta<T> {
 	return { value, env_override: false, requires_restart: true };
 }
@@ -74,6 +131,18 @@ function serialConfig(): AppConfig {
 			reconnect_initial: field('1s'),
 			reconnect_max: field('30s'),
 			stable_reset_after: field('30s'),
+			max_record_bytes: field(65536)
+		},
+		netconsole: {
+			address: field('meshcom.local:2323'),
+			password: field('****'),
+			connect_timeout: field('5s'),
+			auth_timeout: field('5s'),
+			write_timeout: field('5s'),
+			reconnect_initial: field('1s'),
+			reconnect_max: field('30s'),
+			stable_reset_after: field('30s'),
+			max_auth_line_bytes: field(128),
 			max_record_bytes: field(65536)
 		},
 		receive_log: {
@@ -110,4 +179,10 @@ function serialConfig(): AppConfig {
 			telemetry_retention: field('720h0m0s')
 		}
 	};
+}
+
+function netConsoleConfig(): AppConfig {
+	const config = serialConfig();
+	config.transport_mode = field<'udp' | 'serial' | 'netconsole'>('netconsole');
+	return config;
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/logocomune/gomeshcom-client/internal/httpapi"
 	"github.com/logocomune/gomeshcom-client/internal/legacymigrate"
 	"github.com/logocomune/gomeshcom-client/internal/logfmt"
+	"github.com/logocomune/gomeshcom-client/internal/netconsole"
 	"github.com/logocomune/gomeshcom-client/internal/packetingest"
 	"github.com/logocomune/gomeshcom-client/internal/positions"
 	"github.com/logocomune/gomeshcom-client/internal/receivelog"
@@ -253,6 +254,30 @@ func run() (bool, error) {
 		}
 		link = serialLink
 		runTransport = serialLink.Run
+	case config.TransportNetConsole:
+		netConsoleLink, err := netconsole.NewBridge(netconsole.Options{
+			Config: netconsole.Config{
+				Address:          cfg.NetConsole.Address,
+				Password:         cfg.NetConsole.Password,
+				ConnectTimeout:   cfg.NetConsole.ConnectTimeout,
+				AuthTimeout:      cfg.NetConsole.AuthTimeout,
+				WriteTimeout:     cfg.NetConsole.WriteTimeout,
+				ReconnectInitial: cfg.NetConsole.ReconnectInitial,
+				ReconnectMax:     cfg.NetConsole.ReconnectMax,
+				StableResetAfter: cfg.NetConsole.StableResetAfter,
+				MaxAuthLineBytes: cfg.NetConsole.MaxAuthLineBytes,
+				MaxRecordBytes:   cfg.NetConsole.MaxRecordBytes,
+			},
+			Processor: packetProcessor,
+			Forwarder: fwd,
+			Identity:  stationIdentity,
+			DisableTX: cfg.DemoMode,
+		})
+		if err != nil {
+			return false, fmt.Errorf("configure netconsole transport: %w", err)
+		}
+		link = netConsoleLink
+		runTransport = netConsoleLink.Run
 	default:
 		return false, fmt.Errorf("unsupported transport mode %q", cfg.TransportMode)
 	}
@@ -435,10 +460,14 @@ func startupBanner(cfg config.Config, myCall string) string {
 		displayCall = "(unset)"
 	}
 	b.WriteString(bannerText("MYCALL   " + displayCall))
-	if mode == config.TransportSerial {
+	switch mode {
+	case config.TransportSerial:
 		b.WriteString(bannerText("NODE     " + cfg.Serial.Device))
 		b.WriteString(bannerText("SERIAL   " + cfg.Serial.Device))
-	} else {
+	case config.TransportNetConsole:
+		b.WriteString(bannerText("NODE     " + cfg.NetConsole.Address))
+		b.WriteString(bannerText("NETCON   " + cfg.NetConsole.Address))
+	default:
 		nodeDisplay := cfg.NodeAddr
 		if nodeDisplay == "" {
 			nodeDisplay = "(auto-detect from incoming UDP)"

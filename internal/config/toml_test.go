@@ -509,6 +509,18 @@ device = "/dev/ttyUSB0"
 baud = 115200
 dtr = false
 rts = false`,
+		`transport_mode = "netconsole"
+[netconsole]
+address = "meshcom.local:2323"
+password = "secret"
+connect_timeout = "5s"
+auth_timeout = "5s"
+write_timeout = "5s"
+reconnect_initial = "1s"
+reconnect_max = "30s"
+stable_reset_after = "30s"
+max_auth_line_bytes = 128
+max_record_bytes = 65536`,
 		`invalid = [`,
 		``,
 	}

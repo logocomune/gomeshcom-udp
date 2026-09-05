@@ -18,8 +18,25 @@ describe('TransportWarning', () => {
 
 		await expect.element(page.getByText('Serial unavailable')).toBeVisible();
 		await expect.element(page.getByText('device lost')).toBeVisible();
-		await expect.element(page.getByTestId('serial-transport-warning')).toHaveClass('max-w-28');
+		await expect.element(page.getByTestId('transport-warning')).toHaveClass('max-w-28');
 	});
+
+	it.each(['connecting', 'degraded', 'disconnected', 'stopped'])(
+		'shows NETConsole failure in %s state',
+		async (state) => {
+			render(TransportWarning, {
+				props: {
+					transport: {
+						mode: 'netconsole',
+						state,
+						last_error: 'authentication rejected'
+					}
+				}
+			});
+			await expect.element(page.getByText('NETConsole unavailable')).toBeVisible();
+			await expect.element(page.getByText('authentication rejected')).toBeVisible();
+		}
+	);
 
 	it('hides warning for connected serial and all UDP states', () => {
 		render(TransportWarning, { props: { transport: { mode: 'serial', state: 'connected' } } });
@@ -27,5 +44,10 @@ describe('TransportWarning', () => {
 
 		render(TransportWarning, { props: { transport: { mode: 'udp', state: 'degraded' } } });
 		expect(page.getByText('Serial unavailable').query()).toBeNull();
+
+		render(TransportWarning, {
+			props: { transport: { mode: 'netconsole', state: 'connected' } }
+		});
+		expect(page.getByText('NETConsole unavailable').query()).toBeNull();
 	});
 });
