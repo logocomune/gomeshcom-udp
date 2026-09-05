@@ -156,6 +156,11 @@ exponential reconnect with jitter. HTTP remains available. Sends return HTTP
 `503` while no authenticated session exists. The browser displays
 `NETConsole unavailable` with the latest error.
 
+Reconnect backoff resets only after an authenticated session with packet output
+enabled remains connected for `stable_reset_after`. Time spent connecting or
+authenticating does not count toward this interval. Shutdown and restart cancel
+an in-progress authentication exchange immediately by closing the TCP connection.
+
 TCP keepalive assists dead-peer detection, but detection time for an idle
 half-open connection remains operating-system dependent.
 
